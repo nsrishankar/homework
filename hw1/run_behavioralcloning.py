@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-import sys, os, time, copy, random
+import sys, os, time, copy, random, argparse
 import pickle, json
 import tensorflow as tf
 import numpy as np
@@ -11,11 +11,33 @@ import torch
 from torch import nn, optim
 from torch.autograd.variable import Variable as V
 from torchvision import models, utils
+from torch.utils.data import random_split # Not using this
+# Using Scikit-learn for dataset
+from sklearn.utils import shuffle
+from sklearn.model_selection import train_test_split
 
 def load_rollout(filename):
+    randst=10
     with open(filename, 'rb') as f:
         data=pickle.loads(f.read())
-    return data
+        x=data['observations']
+        y=data['actions']
+        x,y=shuffle(x,y,random_state=randst)
+        print("Observations shape {} :: Actions shape {}".format(x.shape,y.shape))
+        len_dataset=len(x)
+        train_size=int(0.9*len_dataset)
+        test_size=len_dataset-train_size
+        x_train,x_test,y_train,y_test=train_test_split(x,y,train_size=0.9,random_state=randst)
+        #x_train,x_test=random_split(x,[train_size,test_size])
+        #y_train,y_test=random_split(y,[train_size,test_size]) # Creates a Pytorch tensor
+        print("X_train shape: {} Y_train shape: {}".format(x_train.shape,y_train.shape))
+        print("X_test shape: {} Y_test shape: {}".format(x_test.shape,y_test.shape))
+        #print("X_train features: ",len(x_train[0]))
+
+        assert len(x_train)==len(y_train)
+        assert len(x_test)==len(y_test)
+    return x_train,y_train,x_test,y_test
+
 
 class simple_neuralnet(torch.nn.Module):
     def __init__(self,input_shape,output_shape):
@@ -24,7 +46,7 @@ class simple_neuralnet(torch.nn.Module):
             nn.BatchNorm1d(input_shape)
         )
         self.fc1=nn.Sequential(
-            nn.Linear(input_shape,128)
+            nn.Linear(input_shape,128),
             nn.LeakyReLU(0.2)
         )
         self.output=nn.Sequential(
@@ -45,7 +67,7 @@ class simple_neuralnet(torch.nn.Module):
 
 
 def main():
-    import argparse
+
     parser = argparse.ArgumentParser()
     parser.add_argument('expert_policy_file', type=str)
     parser.add_argument('envname', type=str)
@@ -63,4 +85,12 @@ def main():
 
 
 if __name__=="__main__":
-    main()
+    parser=argparse.ArgumentParser()
+    parser.add_argument('envname',type=str)
+    args=parser.parse_args()
+
+    data_folder='expert_data/'
+    path=os.path.join(data_folder,args.envname+".pkl")
+    data=load_rollout(path)
+
+    #main()
